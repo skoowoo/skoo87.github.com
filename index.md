@@ -1,5 +1,5 @@
 ---
-layout: mypage
+layout: page
 title: 
 ---
 {% include JB/setup %}
