@@ -33,23 +33,29 @@
   </head>
 
   <body>
-    <!--div style="height:2px;background-color:#000000"></div-->
-    <div style="height:80px;background-color:#ECF0F1">
-      <div class="container">
-        <ul class="nav nav-pills" style="padding-top:20px;padding-left:5%">
-          <li><a href="/" style="color:#000000"><strong>POSTS</strong></a></li>
-          <li><a href="/archive.html" style="color:#000000"><strong>ARCHIVE</strong></a></li>
-          <li><a href="/categories.html" style="color:#000000"><strong>CATEGORY</strong></a></li>
-          <li><a href="/skoo.html" style="color:#000000"><strong>ABOUT</strong></a></li>
-        </ul>
+    <div class="container">
+      <div class="row">
+        <div class="span2"></div>
+        <div class="span8" style="height:80px;">
+          <ul class="nav nav-pills" style="padding-top:20px;">
+            <li><a href="/" style="color:#000000"><strong>POSTS</strong></a></li>
+            <li><a href="/archive.html" style="color:#000000"><strong>ARCHIVE</strong></a></li>
+            <li><a href="/categories.html" style="color:#000000"><strong>CATEGORY</strong></a></li>
+            <li><a href="/skoo.html" style="color:#C0392B"><strong>ABOUT</strong></a></li>
+          </ul>
+        </div>
+        <div class="span2"></div>
+      </div>
+
+      <div class="row">
+        <div class="span2"></div>
+        <div class="content span8" style="padding-top:20px">
+          {{ content }}
+        </div>
+        <div class="span2"></div>
       </div>
     </div>
 
-    <div class="container">
-      <div class="content" style="padding-left:5%; padding-right:5%; padding-top:20px">
-        {{ content }}
-      </div>
-    </div>
     {% include JB/analytics %}
   </body>
 </html>
