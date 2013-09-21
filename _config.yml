@@ -82,7 +82,7 @@ JB :
   comments :
     provider : disqus
     disqus :
-      short_name : skoo
+      short_name : skoo87
     livefyre :
       site_id : 123
     intensedebate :
