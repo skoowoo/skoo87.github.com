@@ -182,7 +182,8 @@ case条件的注册过程特别简单，没什么复杂的内容，但这部分�
 		// 当前goroutine被唤醒开始执行了，再次把所有channel加锁。还是暴力。
 		sellock(sel);
 
-		// 这一个遍历case的for循环，很有意思。这里就是本次select不会执行的那些case对应的		// channel给出队当前goroutine。就是不管它们了，已经找到了一个执行的目标case了。
+		// 这一个遍历case的for循环，很有意思。这里就是本次select不会执行的那些case对应的
+		// channel给出队当前goroutine。就是不管它们了，已经找到了一个执行的目标case了。
 		for(i=0; i<sel->ncase; i++) {
 			cas = &sel->scase[i];
 			if(cas != (Scase*)sg) {
