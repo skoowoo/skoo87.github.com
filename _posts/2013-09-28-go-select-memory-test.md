@@ -1,6 +1,6 @@
 ---
 layout: post
-title: select的内存分配情况
+title: Go语言select的内存分配情况
 category: Go
 tagline: "Supporting tagline"
 tags : [Go, select]
