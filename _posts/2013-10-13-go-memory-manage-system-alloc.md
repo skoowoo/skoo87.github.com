@@ -8,7 +8,7 @@ tags : [Go, runtime]
 {% include JB/setup %}
 
 
-前几天断断续续的写了3篇关于Go语言内存分配器的文章，分别是[Go语言内存分配器设计](http://www.bigendian123.com/go/2013/10/08/go-memory-manage-system-design/)、[Go语言内存分配器-FixAlloc](http://www.bigendian123.com/go/2013/10/09/go-memory-manage-system-fixalloc/)、[Go语言内存分配器-MSpan](http://www.bigendian123.com/go/2013/10/11/go-memory-manage-system-span/)，这3篇主要是文本的前戏，其实所有的内容本可以在一篇里写完的，但内容实在太多了，没精力一口气搞定。本文将把整个内存分配器的架构以及核心组件给详细的介绍一下，当然亲自对照着翻看一下代码才是王道。
+前几天断断续续的写了3篇关于Go语言内存分配器的文章，分别是[Go语言内存分配器设计](http://www.bigendian123.com/go/2013/10/08/go-memory-manage-system-design/)、[Go语言内存分配器-FixAlloc](http://www.bigendian123.com/go/2013/10/09/go-memory-manage-system-fixalloc/)、[Go语言内存分配器-MSpan](http://www.bigendian123.com/go/2013/10/11/go-memory-manage-system-span/)，这3篇主要是本文的前戏，其实所有的内容本可以在一篇里写完的，但内容实在太多了，没精力一口气搞定。本文将把整个内存分配器的架构以及核心组件给详细的介绍一下，当然亲自对照着翻看一下代码才是王道。
 
 内存布局结构图
 
