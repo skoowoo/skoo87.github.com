@@ -1,0 +1,33 @@
+---
+layout: post
+title: 使用cpu的时钟周期作为随机数发生器的种子
+category: system
+tagline: "Supporting tagline"
+tags : [rdtsc, go]
+---
+{% include JB/setup %}
+
+
+对于一个伪随机数发生器来说，种子的设置是非常重要的；Go语言runtime中的每个线程也有自己的一个随机数发生器，当然也是伪的，这个伪随机数发生器的种子设置采用了另外一种方法——使用了cpu的时钟周期计数器。
+
+go语言的实现采用了一段汇编代码读取cpu的cycle信息，如下：
+
+	TEXT runtime·cputicks(SB),7,$0
+		RDTSC
+		SHLQ	$32, DX
+		ADDQ	DX, AX
+		RET
+
+这段汇编代码的语法好像有点奇怪，和平时常见的AT&T语法有那么一点不同；确实，Go语言有一套自己的编译器，汇编器当然也是自己的了。这套编译器其实是Plan9平台上的玩意，个人觉得这汇编语法更顺眼一点，相比AT&T来说。
+
+这里采用汇编实现的函数runtime·cputicks，第一条就是rdtsc指令。rdtsc指令就是核心，它是用来获取cpu自从加电以来执行的周期数，读取到的64位整数的低32位保存在AX寄存器，高32位保存到DX寄存器。所以，接下来的SHLQ指令就是将DX中的高32位值左移32位，然后通过ADD指令和低32位值加起来就得到了cpu的cycle值了。
+
+可以看出使用cpu的时钟周期来作为随机发生器的种子是一种高精度的方法，比采用当前时间戳的精度要高很多。也有不少人采用rdtsc指令来做代码的性能测量，也就是在执行之前读取一下cpu cycle，完成后再读取一次，最后求一下差值。使用rdtsc做性能profiling在现在这些高端cpu上可能不那么靠谱了，主要是因为cpu支持指令乱序执行的原因，当然也还有一些其他的原因，可以看这篇文章：[http://www.ccsl.carleton.ca/~jamuir/rdtscpm1.pdf](http://www.ccsl.carleton.ca/~jamuir/rdtscpm1.pdf) 。
+
+对了，rdtsc是read time stamp counter的缩写。
+
+
+
+</br>
+****
+*孤陋寡闻，第一次见这指令的使用，好久不写博客了，随手记录一下。多关注，留意细节可以学到蛮多意想不到的东西。*
