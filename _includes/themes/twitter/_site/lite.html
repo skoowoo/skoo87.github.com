@@ -38,30 +38,18 @@
     </nav>
     <div class="container-fluid">
       <div class="row-fluid" style="color:#C0392B">
-        <h3><a href="/" style="color:#C0392B">skoo's notes</a></h3>
+        <h3><a href="/">skoo's notes</a></h3>
         <h5>努力记录一些自己觉得有趣的东西...</h5>
       </div>
 
       <div class="row-fluid">
-        <div class="span9">
-          <div class="content" style="color:#2C3E50">
-            {{ content }}
-          </div>
-        </div>
-
-        <div class="span3" style="padding-top:40px">
-          {% for category in site.categories %} 
-          <div style="color:#E74C3C">{{ category[0] | join: "/" }}</div>
-          <ul>
-            {% assign pages_list = category[1] %}  
-            {% include JB/pages_list %}
-          </ul>
-          {% endfor %}
-
+        <div class="content" style="padding-top:20px">
+          {{ content }}
         </div>
       </div>
     </div>
 
     {% include JB/analytics %}
+    {% include JB/comments %}
   </body>
 </html>

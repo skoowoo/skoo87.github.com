@@ -5,9 +5,10 @@ title:
 {% include JB/setup %}
 
 
-<ul class="posts">
-  {% for post in site.posts %}
-    <li><span>{{ post.date | date_to_string }}</span> &raquo; <a href="{{ BASE_PATH }}{{ post.url }}">{{ post.title }}</a></li>
-  {% endfor %}
-</ul>
+<div class="post">
+  <div class="posttitle">
+    <h3><a style="color:#C0392B" href="{{ site.posts.first.url }}">{{ site.posts.first.title }}</a></h3>
+  </div>
+  {{ site.posts.first.content }} 
+</div>
 
