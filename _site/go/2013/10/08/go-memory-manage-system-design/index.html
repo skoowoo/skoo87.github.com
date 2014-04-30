@@ -1,0 +1,471 @@
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>skoo  Go语言内存分配器设计</title>
+    
+    <meta name="author" content="skoo">
+
+    <!-- Enable responsive viewport -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- Le HTML5 shim, for IE6-8 support of HTML elements -->
+    <!--[if lt IE 9]>
+      <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+
+    <!-- Le styles -->
+    <link href="/assets/themes/twitter/bootstrap/css/bootstrap.2.2.2.min.css" rel="stylesheet">
+    <link href="/assets/themes/twitter/css/style.css?body=1" rel="stylesheet" type="text/css" media="all">
+    <link href="/assets/themes/twitter/css/pygments.css?body=1" rel="stylesheet" type="text/css" media="all">
+
+    <style>
+      code {
+        font-size: 13px;
+        padding: 1px 1px;
+        color: #2980B9;
+        background-color: ;
+        border: 0px solid white;
+        white-space: nowrap;
+      }
+
+      pre{
+        display:block;
+        padding:9.5px;
+        margin:0 0 5px;
+        font-size:11px;
+        line-height:15px;
+        word-break:break-all;
+        word-wrap:break-word;
+        white-space:pre;
+        white-space:pre-wrap;
+        background-color:;
+        border:0px;
+        border:0px;
+        -webkit-border-radius:0px;
+        -moz-border-radius:0px;
+        border-radius:0px;
+      }
+      pre.prettyprint{margin-bottom:10px;}
+    </style>
+
+    <!-- Le fav and touch icons -->
+  <!-- Update these with your own images
+    <link rel="shortcut icon" href="images/favicon.ico">
+    <link rel="apple-touch-icon" href="images/apple-touch-icon.png">
+    <link rel="apple-touch-icon" sizes="72x72" href="images/apple-touch-icon-72x72.png">
+    <link rel="apple-touch-icon" sizes="114x114" href="images/apple-touch-icon-114x114.png">
+  -->
+
+    <!-- atom & rss feed -->
+    <link href="/atom.xml" type="application/atom+xml" rel="alternate" title="Sitewide ATOM Feed">
+    <link href="/rss.xml" type="application/rss+xml" rel="alternate" title="Sitewide RSS Feed">
+
+  </head>
+
+  <body>
+    <div style="background-color: #E74C3C">
+      <div class="container-fluid">
+        <div class="row-fluid" style="color:#ECF0F1">
+          <div class="span11">
+            <h3><a href="/" style="color:#ECF0F1">skoo's notes</a></h3>
+            <small>努力记录一些自己觉得有趣的东西...</small>
+          </div>
+
+          <div class="span1">
+            <h4><a href="/skoo.html">About</a></h4>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="container-fluid">
+      <div class="row-fluid">
+        <div class="span9">
+          <div class="content" style="font-size:15px">
+            
+<div class="page-header">
+  <h3>Go语言内存分配器设计</h3>
+</div>
+
+<div class="row-fluid post-full">
+  <div class="span12">
+    <div class="date">
+      <span>08 October 2013</span>
+    </div>
+    <div class="author">
+      <span>by <a href="/skoo.html">skoo</a></span>
+    </div>
+    <div class="content">
+      <p>Go语言的整个内存管理子系统主要由两部分组成——内存分配器和垃圾收集器(gc)。十一小长假期为了避开我泱泱大国的人流高峰，于是在家宅了3天把Go语言的内存分配器部分的代码给研究了一番，总的来说还是非常酷的，自己也学到了不少的东西，就此记录分享一下。整个内存分配器完全是基于Google自家的tcmalloc的设计重新实现了一遍，因此，想看看Go语言的内存分配器实现的话，强烈建议先读一读<a href='http://google-perftools.googlecode.com/svn/trunk/doc/tcmalloc.html'>tcmalloc</a>的介绍文档，然后看看Go runtime的malloc.h源码文件的注释介绍，这样基本就大概了解Go语言内存分配器的设计了。</p>
+<div align='center'>
+<img height='350' src='/assets/images/go-mem-system-design.png' width='500' />
+</div>
+<p>Go的内存分配器主要也是解决小对象的分配管理和多线程的内存分配问题。（后面提到的内存分配器都是指代的Go语言实现的内存分配器）。内存分配器以32k作为对象大小的定夺标准，小于等于32k的内存对象一律视为小对象，而大于32k的对象就是大对象了。为何是32k作为分界线呢？这个我也不知道，我觉得这是一个经验值吧，如果你知道有其他更加科学的理由，麻烦告知我一下。</p>
+
+<p>内存分配器会将分配的小对象使用一个cache组件给缓存起来，只要是分配小对象就先到cache中查询一下，有空闲的内存就直接返回使用，不用向操作系统申请内存。内存分配器的这个cache组件可能同时存在多个，也就是每个实际线程都会有一个cache组件，这样一来，从cache里查询、获取空闲内存的时候就不需要加锁了，每次小对象的申请直接访问本线程对应的cache即可。我们再写程序的时候，其实绝大多数的内存申请都是小于32k的，属于小对象，因此这样的内存分配全部走本地cache，不用向操作系统申请显然是非常高效的。</p>
+
+<p>有cache，必然就有cache不命中的情况，内存分配器在面对<code>Cache</code>查找不到空闲内存的时候，就会试图从<code>Central</code>中申请一批小对象内存到本地缓存住，这里的Central是所有线程共享的一个组件，不是独占的，因此需要加锁操作。我们需要知道Central组件其实也是一个缓存，但它缓存的不是小对象内存块，而是一组一组的内存page(一个page占4k大小)。如果Central中没有缓存的空闲内存page的话，就从<code>Heap</code>中申请内存来填充Central。当然对Heap的操作也是需要加锁，所有线程共享一个Heap。Heap中没有缓存的内存，当然就直接从操作系统拿取内存了。</p>
+
+<p>小对象的内存分配是通过一级一级的缓存来实现的，目的就是为了提升内存分配释放的速度以及避免内存碎片等问题。大于32k的大对象内存分配就没这么麻烦了，不用一层一层的查询各个缓存组件，而是直接向<code>Heap</code>申请。上图是大概描述了一下整个内存分配器的组件结构，Cache、Central、Heap是三个核心组件，也是后面将重点分析的对象。</p>
+
+<p>内存分配器的实现我需要拆成多篇文章来写，没精力一口气写完，其实按组件拆开写也方便阅读嘛。后面的文章将陆续写完各个核心组件。</p>
+<br /><hr />
+<p>题外话，在基础系统软件的世界里，内存管理是一个永恒的话题，所以存在tcmalloc和jemalloc这类非常优秀的内存分配器实现。据说，jemalloc在cpu核数较多的情况下，性能还要优于tcmalloc，但估计它们之间是不相伯仲的，主体设计都差不多。jemalloc也是纯C代码，应该是非常值得一看的。不知道为何，现在对C++项目，总有研究拖延症，没有强烈的动力去第一时间看源码。</p>
+<br />
+<p><em>这两天，拜台风所赐，杭州又变大海了，家门口水深到我膝盖，不得不穿拖鞋短裤出门，真冷啊。附一个我今天在上班公交车上拍的照片吧。</em></p>
+<div align='center'>
+<img height='150' src='/assets/images/hz-boat.jpg' width='400' />
+</div>
+    </div>
+
+  
+    <ul class="tag_box inline">
+      <li><i class="icon-folder-open"></i></li>
+      
+      
+
+
+  
+     
+    	<li><a href="/categories.html#go-ref">
+    		go <span>14</span>
+    	</a></li>
+    
+  
+
+
+    </ul>
+    
+
+  
+    <ul class="tag_box inline">
+      <li><i class="icon-tags"></i></li>
+      
+      
+
+
+  
+     
+    	<li><a href="/tags.html#Go-ref">Go <span>15</span></a></li>
+     
+    	<li><a href="/tags.html#runtime-ref">runtime <span>11</span></a></li>
+    
+  
+
+
+
+    </ul>
+    
+
+    <hr>
+    
+
+
+  <!-- UY BEGIN -->
+<div id="uyan_frame"></div>
+<script type="text/javascript" src="http://v2.uyan.cc/code/uyan.js?uid=1905720"></script>
+<!-- UY END -->
+
+
+
+
+
+  </div>
+</div>
+
+
+          </div>
+        </div>
+
+        <div class="span3" style="padding-top:40px">
+          <div style="color:#E74C3C">友情链接</div>
+          <ul><a href="http://blog.csdn.net/marcky" target="_blank">My CSDN Blog</a></ul>
+
+           
+          <div style="color:#E74C3C">eg</div>
+          <ul>
+              
+            
+
+
+  
+    
+      
+      	
+      	<li><a href="/eg/1970/01/01/example">example</a></li>
+      	
+      
+    
+  
+
+
+
+          </ul>
+           
+          <div style="color:#E74C3C">go</div>
+          <ul>
+              
+            
+
+
+  
+    
+      
+      	
+      	<li><a href="/go/2014/04/21/go-net-core">深入Go语言网络库的基础实现</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/11/29/golang-schedule">goroutine与调度器</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/11/11/go-runtime-mind">Go runtime中的那些东东</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/10/13/go-memory-manage-system-alloc">Go语言内存分配器的实现</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/10/11/go-memory-manage-system-span">Go语言内存分配器-MSpan</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/10/09/go-memory-manage-system-fixalloc">Go语言内存分配器-FixAlloc</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li class="active"><a href="/go/2013/10/08/go-memory-manage-system-design" class="active">Go语言内存分配器设计</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/09/28/go-select-memory-test">Go语言select的内存分配情况</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/09/26/go-runtime-select">select in Go's runtime</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/09/20/go-runtime-channel">channel in Go's runtime</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/09/12/go-runtime-timer">timer in Go's runtime</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/09/10/go-rpc-benchmark">Go RPC Benchmark</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/09/01/go-rpcserver-inside">Go RPC Inside (server)</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/08/28/go-rpcclient-inside">Go RPC Inside (client)</a></li>
+      	
+      
+    
+  
+
+
+
+          </ul>
+           
+          <div style="color:#E74C3C">vim</div>
+          <ul>
+              
+            
+
+
+  
+    
+      
+      	
+      	<li><a href="/vim/2013/09/18/vim-plugin-manager">使用github管理我的Vim</a></li>
+      	
+      
+    
+  
+
+
+
+          </ul>
+           
+          <div style="color:#E74C3C">algorithm</div>
+          <ul>
+              
+            
+
+
+  
+    
+      
+      	
+      	<li><a href="/algorithm/2013/09/30/base-128-varint">Base 128 Varint, 一种处理整数的变长二进制编码算法</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/algorithm/2013/09/28/shuffle-algorithm">一个洗牌场景及算法</a></li>
+      	
+      
+    
+  
+
+
+
+          </ul>
+           
+          <div style="color:#E74C3C">system</div>
+          <ul>
+              
+            
+
+
+  
+    
+      
+      	
+      	<li><a href="/system/2014/04/30/heka-plugin-devel">Heka插件开发</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/system/2014/04/02/hekad">Heka, 一个高可扩展的实时数据收集和处理工具</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/system/2014/03/19/inet-aton">inet_aton的坑</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/system/2014/03/18/udp-server-performance">使用reuseport和recvmmsg优化UDP服务器</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/system/2014/03/09/cdn-scheduler-conclusion">调度开发中的那些事</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/system/2014/03/05/reuseport">reuseport</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/system/2013/11/14/rdtsc-instruction">使用cpu的时钟周期作为随机数发生器的种子</a></li>
+      	
+      
+    
+  
+
+
+
+          </ul>
+          
+
+        </div>
+      </div>
+    </div>
+
+    
+
+
+  <script type="text/javascript">
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-44034004-1']);
+  _gaq.push(['_trackPageview']);
+
+  (function() {
+    var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+    ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+    var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+  })();
+</script>
+
+
+
+  </body>
+</html>
+

@@ -1,0 +1,515 @@
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>skoo  一个洗牌场景及算法</title>
+    
+    <meta name="author" content="skoo">
+
+    <!-- Enable responsive viewport -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- Le HTML5 shim, for IE6-8 support of HTML elements -->
+    <!--[if lt IE 9]>
+      <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+
+    <!-- Le styles -->
+    <link href="/assets/themes/twitter/bootstrap/css/bootstrap.2.2.2.min.css" rel="stylesheet">
+    <link href="/assets/themes/twitter/css/style.css?body=1" rel="stylesheet" type="text/css" media="all">
+    <link href="/assets/themes/twitter/css/pygments.css?body=1" rel="stylesheet" type="text/css" media="all">
+
+    <style>
+      code {
+        font-size: 13px;
+        padding: 1px 1px;
+        color: #2980B9;
+        background-color: ;
+        border: 0px solid white;
+        white-space: nowrap;
+      }
+
+      pre{
+        display:block;
+        padding:9.5px;
+        margin:0 0 5px;
+        font-size:11px;
+        line-height:15px;
+        word-break:break-all;
+        word-wrap:break-word;
+        white-space:pre;
+        white-space:pre-wrap;
+        background-color:;
+        border:0px;
+        border:0px;
+        -webkit-border-radius:0px;
+        -moz-border-radius:0px;
+        border-radius:0px;
+      }
+      pre.prettyprint{margin-bottom:10px;}
+    </style>
+
+    <!-- Le fav and touch icons -->
+  <!-- Update these with your own images
+    <link rel="shortcut icon" href="images/favicon.ico">
+    <link rel="apple-touch-icon" href="images/apple-touch-icon.png">
+    <link rel="apple-touch-icon" sizes="72x72" href="images/apple-touch-icon-72x72.png">
+    <link rel="apple-touch-icon" sizes="114x114" href="images/apple-touch-icon-114x114.png">
+  -->
+
+    <!-- atom & rss feed -->
+    <link href="/atom.xml" type="application/atom+xml" rel="alternate" title="Sitewide ATOM Feed">
+    <link href="/rss.xml" type="application/rss+xml" rel="alternate" title="Sitewide RSS Feed">
+
+  </head>
+
+  <body>
+    <div style="background-color: #E74C3C">
+      <div class="container-fluid">
+        <div class="row-fluid" style="color:#ECF0F1">
+          <div class="span11">
+            <h3><a href="/" style="color:#ECF0F1">skoo's notes</a></h3>
+            <small>努力记录一些自己觉得有趣的东西...</small>
+          </div>
+
+          <div class="span1">
+            <h4><a href="/skoo.html">About</a></h4>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="container-fluid">
+      <div class="row-fluid">
+        <div class="span9">
+          <div class="content" style="font-size:15px">
+            
+<div class="page-header">
+  <h3>一个洗牌场景及算法</h3>
+</div>
+
+<div class="row-fluid post-full">
+  <div class="span12">
+    <div class="date">
+      <span>28 September 2013</span>
+    </div>
+    <div class="author">
+      <span>by <a href="/skoo.html">skoo</a></span>
+    </div>
+    <div class="content">
+      <p>那些非常简单的，却又能真正的解决实际问题的算法往往才是最经典的。直观感受，洗牌算法运用最多的应该是在游戏开发中，其实并不一定，洗牌其实就是排序算法的反向操作，目的就是将原本可能存在的一定顺序给打乱，变成一种非期望的顺序，所以应用场景应该还是蛮广泛的。简单的打乱一组次序应该是一件很容易的事情，但一个正确的洗牌算法除了能够打乱次序外，还具备等概率性，也就是说任何一个元素被打乱到任何一个位置的概率是相等的。</p>
+
+<p>其实，我平时的编程中好像很少碰到洗牌的时候。最近在Go语言的实现中看到一个有趣的洗牌场景，这里记录一下和大家分享。</p>
+
+<pre><code>select {
+case 条件1:
+	。。。
+case 条件2:
+	。。。
+case 条件3:
+	。。。
+case 条件4:
+	。。。
+case 条件5:
+	。。。
+}</code></pre>
+
+<p>如果你了解Go语言的话，应该知道上面的select语句会<strong>随机</strong>的选择一个<strong>可以执行</strong>的case条件。这里是如何实现随机选择的呢？？？</p>
+
+<p>有人说，“这个很简单啊，利用随机数在这5个条件中随机选择一个就可以了，只要随机数发生器实现得好就行了”。 这个方法看上去似乎可以工作，但这5个条件并不是都可以执行的，可以理解为有的条件并不是true。select的目的是在为true的条件中随机选择一个，并不是在所有条件中进行随机选择。</p>
+
+<p>既然是在可执行的条件中随机选择一个来执行，那么我们再加一个步骤，“首先遍历这里的所有case条件，把可执行的条件给标记出来，然后再在标记出来的可执行条件中利用随机数来随机选择一个”。嘿，这方法可以真正解决问题了，行得通的样子。其实，在Go runtime里，使用这个方法去做，挺麻烦的，主要的问题是判断条件是否可执行，因为并不存在一个判断的过程，而是直接去执行，执行了就ok了，不能够执行就算了，所以针对条件是一个试图去执行的探测，之前并没有一个可判断的标准。</p>
+
+<p>Go语言的实现，在解决这个问题的时候，就利用了洗牌，本文也就是介绍洗牌算法用于这种场景。因为在试图执行每个case条件之前，并不知道哪些条件可执行，所以Go的实现者就先把所有的条件利用洗牌给重新排序一遍，然后再从头到尾依次试图执行每个条件，碰到一个可执行条件后，就忽略后面的条件了。这样子一来，就做到了在所有可执行条件中，随机选择一个可执行的条件。这种场景利用洗牌来实现，明显是非常的合适和优雅的。</p>
+
+<p>常用的洗牌算法蛮多的，比如：经典的<a href='http://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle'>Fisher-Yates</a>，伪代码如下：</p>
+
+<pre><code>To shuffle an array a of n elements (indices 0..n-1):
+for i from n − 1 downto 1 do
+   j ← random integer with 0 ≤ j ≤ i
+   exchange a[j] and a[i]</code></pre>
+
+<p>本文提到的Go采用的洗牌算法和Fisher-Yates非常像，甚至我觉得它就是Fisher-Yates，只是和这个伪代码有一小点不同之处。</p>
+
+<pre><code>for(i=1; i&lt;sel-&gt;ncase; i++) {
+    o = sel-&gt;pollorder[i];
+    j = runtime·fastrand1()%(i+1);
+    sel-&gt;pollorder[i] = sel-&gt;pollorder[j];
+    sel-&gt;pollorder[j] = o;
+}</code></pre>
+
+<p>可以看出这两个洗牌算法非常相似，但又有一点不同。因此，我决定对Go的洗牌算法进行统计测试，测试方法参考：<a href='http://coolshell.cn/articles/8593.html'>如何测试洗牌程序</a>。我的测试是执行10000次洗牌，测试代码：<a href='https://gist.github.com/skoo87/6724116#file-go_shuffle-go'>https://gist.github.com/skoo87/6724116#file-go_shuffle-go</a></p>
+
+<p>结果数据：</p>
+
+<pre><code>	 0     1     2 	   3 	 4     5     6     7     8     9    （位置）
+	     
+1 -&gt;   951  1010   980  1016  1036  1007  1048   951  1020   981
+5 -&gt;   940  1041  1028  1057   997  1038   979   991   923  1006
+3 -&gt;  1041   976  1000   994   962  1009   970   979  1026  1043
+9 -&gt;  1013   964  1021   957   971   983  1034  1052  1016   989
+7 -&gt;  1053  1009  1031   960  1012   998   970  1022   993   952
+6 -&gt;  1012   963   984   980  1011  1000  1034   950  1041  1025
+2 -&gt;   986   992   994   975   993  1025  1023   994  1025   993
+8 -&gt;  1001   986  1006   992   996   952   996  1043  1003  1025
+0 -&gt;   980  1041  1003  1043   979  1003   981   995   961  1014
+4 -&gt;  1023  1018   953  1026  1043   985   965  1023   992   972	
+(被洗对象)</code></pre>
+
+<p>从测试结果数据来看，每个对象出现在每个位置的次数相差不大，还是很靠谱的。</p>
+
+<p>可以看出这分数据是一个二维表的形式，其实，我很想将这份数据给绘制成图表，最理想的图就是构造一个二维坐标，每个对象出现的位置就画一个点，那么最后形成的图看上去各个地方的密度都差不多的时候就说明洗牌算法比较靠谱。不知道有什么好用的工具可以直观的可视化这种形式的数据，如果你知道，麻烦告诉我一下。</p>
+
+<p>今天天气不怎么好，宅家里码字比较开心，因为不觉得是在浪费美好的时间，哈哈。</p>
+    </div>
+
+  
+    <ul class="tag_box inline">
+      <li><i class="icon-folder-open"></i></li>
+      
+      
+
+
+  
+     
+    	<li><a href="/categories.html#algorithm-ref">
+    		algorithm <span>2</span>
+    	</a></li>
+    
+  
+
+
+    </ul>
+    
+
+  
+    <ul class="tag_box inline">
+      <li><i class="icon-tags"></i></li>
+      
+      
+
+
+  
+     
+    	<li><a href="/tags.html#shuffle-ref">shuffle <span>1</span></a></li>
+     
+    	<li><a href="/tags.html#algorithm-ref">algorithm <span>1</span></a></li>
+    
+  
+
+
+
+    </ul>
+    
+
+    <hr>
+    
+
+
+  <!-- UY BEGIN -->
+<div id="uyan_frame"></div>
+<script type="text/javascript" src="http://v2.uyan.cc/code/uyan.js?uid=1905720"></script>
+<!-- UY END -->
+
+
+
+
+
+  </div>
+</div>
+
+
+          </div>
+        </div>
+
+        <div class="span3" style="padding-top:40px">
+          <div style="color:#E74C3C">友情链接</div>
+          <ul><a href="http://blog.csdn.net/marcky" target="_blank">My CSDN Blog</a></ul>
+
+           
+          <div style="color:#E74C3C">eg</div>
+          <ul>
+              
+            
+
+
+  
+    
+      
+      	
+      	<li><a href="/eg/1970/01/01/example">example</a></li>
+      	
+      
+    
+  
+
+
+
+          </ul>
+           
+          <div style="color:#E74C3C">go</div>
+          <ul>
+              
+            
+
+
+  
+    
+      
+      	
+      	<li><a href="/go/2014/04/21/go-net-core">深入Go语言网络库的基础实现</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/11/29/golang-schedule">goroutine与调度器</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/11/11/go-runtime-mind">Go runtime中的那些东东</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/10/13/go-memory-manage-system-alloc">Go语言内存分配器的实现</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/10/11/go-memory-manage-system-span">Go语言内存分配器-MSpan</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/10/09/go-memory-manage-system-fixalloc">Go语言内存分配器-FixAlloc</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/10/08/go-memory-manage-system-design">Go语言内存分配器设计</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/09/28/go-select-memory-test">Go语言select的内存分配情况</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/09/26/go-runtime-select">select in Go's runtime</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/09/20/go-runtime-channel">channel in Go's runtime</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/09/12/go-runtime-timer">timer in Go's runtime</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/09/10/go-rpc-benchmark">Go RPC Benchmark</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/09/01/go-rpcserver-inside">Go RPC Inside (server)</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/08/28/go-rpcclient-inside">Go RPC Inside (client)</a></li>
+      	
+      
+    
+  
+
+
+
+          </ul>
+           
+          <div style="color:#E74C3C">vim</div>
+          <ul>
+              
+            
+
+
+  
+    
+      
+      	
+      	<li><a href="/vim/2013/09/18/vim-plugin-manager">使用github管理我的Vim</a></li>
+      	
+      
+    
+  
+
+
+
+          </ul>
+           
+          <div style="color:#E74C3C">algorithm</div>
+          <ul>
+              
+            
+
+
+  
+    
+      
+      	
+      	<li><a href="/algorithm/2013/09/30/base-128-varint">Base 128 Varint, 一种处理整数的变长二进制编码算法</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li class="active"><a href="/algorithm/2013/09/28/shuffle-algorithm" class="active">一个洗牌场景及算法</a></li>
+      	
+      
+    
+  
+
+
+
+          </ul>
+           
+          <div style="color:#E74C3C">system</div>
+          <ul>
+              
+            
+
+
+  
+    
+      
+      	
+      	<li><a href="/system/2014/04/30/heka-plugin-devel">Heka插件开发</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/system/2014/04/02/hekad">Heka, 一个高可扩展的实时数据收集和处理工具</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/system/2014/03/19/inet-aton">inet_aton的坑</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/system/2014/03/18/udp-server-performance">使用reuseport和recvmmsg优化UDP服务器</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/system/2014/03/09/cdn-scheduler-conclusion">调度开发中的那些事</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/system/2014/03/05/reuseport">reuseport</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/system/2013/11/14/rdtsc-instruction">使用cpu的时钟周期作为随机数发生器的种子</a></li>
+      	
+      
+    
+  
+
+
+
+          </ul>
+          
+
+        </div>
+      </div>
+    </div>
+
+    
+
+
+  <script type="text/javascript">
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-44034004-1']);
+  _gaq.push(['_trackPageview']);
+
+  (function() {
+    var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+    ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+    var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+  })();
+</script>
+
+
+
+  </body>
+</html>
+

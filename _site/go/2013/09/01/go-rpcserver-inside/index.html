@@ -1,0 +1,555 @@
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>skoo  Go RPC Inside (server)</title>
+    
+    <meta name="author" content="skoo">
+
+    <!-- Enable responsive viewport -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- Le HTML5 shim, for IE6-8 support of HTML elements -->
+    <!--[if lt IE 9]>
+      <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+
+    <!-- Le styles -->
+    <link href="/assets/themes/twitter/bootstrap/css/bootstrap.2.2.2.min.css" rel="stylesheet">
+    <link href="/assets/themes/twitter/css/style.css?body=1" rel="stylesheet" type="text/css" media="all">
+    <link href="/assets/themes/twitter/css/pygments.css?body=1" rel="stylesheet" type="text/css" media="all">
+
+    <style>
+      code {
+        font-size: 13px;
+        padding: 1px 1px;
+        color: #2980B9;
+        background-color: ;
+        border: 0px solid white;
+        white-space: nowrap;
+      }
+
+      pre{
+        display:block;
+        padding:9.5px;
+        margin:0 0 5px;
+        font-size:11px;
+        line-height:15px;
+        word-break:break-all;
+        word-wrap:break-word;
+        white-space:pre;
+        white-space:pre-wrap;
+        background-color:;
+        border:0px;
+        border:0px;
+        -webkit-border-radius:0px;
+        -moz-border-radius:0px;
+        border-radius:0px;
+      }
+      pre.prettyprint{margin-bottom:10px;}
+    </style>
+
+    <!-- Le fav and touch icons -->
+  <!-- Update these with your own images
+    <link rel="shortcut icon" href="images/favicon.ico">
+    <link rel="apple-touch-icon" href="images/apple-touch-icon.png">
+    <link rel="apple-touch-icon" sizes="72x72" href="images/apple-touch-icon-72x72.png">
+    <link rel="apple-touch-icon" sizes="114x114" href="images/apple-touch-icon-114x114.png">
+  -->
+
+    <!-- atom & rss feed -->
+    <link href="/atom.xml" type="application/atom+xml" rel="alternate" title="Sitewide ATOM Feed">
+    <link href="/rss.xml" type="application/rss+xml" rel="alternate" title="Sitewide RSS Feed">
+
+  </head>
+
+  <body>
+    <div style="background-color: #E74C3C">
+      <div class="container-fluid">
+        <div class="row-fluid" style="color:#ECF0F1">
+          <div class="span11">
+            <h3><a href="/" style="color:#ECF0F1">skoo's notes</a></h3>
+            <small>努力记录一些自己觉得有趣的东西...</small>
+          </div>
+
+          <div class="span1">
+            <h4><a href="/skoo.html">About</a></h4>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="container-fluid">
+      <div class="row-fluid">
+        <div class="span9">
+          <div class="content" style="font-size:15px">
+            
+<div class="page-header">
+  <h3>Go RPC Inside (server)</h3>
+</div>
+
+<div class="row-fluid post-full">
+  <div class="span12">
+    <div class="date">
+      <span>01 September 2013</span>
+    </div>
+    <div class="author">
+      <span>by <a href="/skoo.html">skoo</a></span>
+    </div>
+    <div class="content">
+      <p>说到rpc让我想起了刚毕业面试的时候，被问到是否了解rpc？我记得当时我的回答是“课本上学过rpc，只知道是远程过程调用，但没有用过，具体也不知道是什么”。的确，大学中间件这门课程里有讲到rpc，里面还引入了一个非常难理解的概念——“桩”，英文应该叫&#8221;stub&#8221;。现在的rpc实现里，stub这个概念好像都没见到了，应该都是叫&#8221;method&#8221;。</p>
+
+<p>实现一个rpc服务器很难吗？rpc服务器也就是在tcp服务器的基础上加上自定义的rpc协议而已。一个rpc协议里，主要有个3个非常重要的信息。</p>
+
+<ul>
+<li>调用的远程method名字，一般就是一个函数名</li>
+
+<li>call参数，也就是发送给服务器的数据</li>
+
+<li>客户端生成的调用请求seq</li>
+</ul>
+
+<p>除了最后一点，其他两点显然就是组成一个普通的函数调用而已，这也就是远程过程调用了。最后一点的seq只是rpc内部实现的一个关键点而已，也许还有其他的实现方式，而不是依赖seq来保证单连接的并发请求。</p>
+
+<h4 id='crpc'>如何用C语言实现rpc服务器？</h4>
+
+<p>用C语言来实现rpc服务器，先假设我们从socket里读取到了一个来自于客户端的call请求，这个call请求里面封装了上面提到的3点信息。</p>
+
+<p>执行这个call，最重要的就是——<strong>“从call里取出method，也就是一个函数名(字符串)，然后要通过这个函数名去执行对应的函数”。</strong></p>
+
+<p>C语言由于没有反射机制，于是不能通过函数的名字去调对应的函数；因此，可以使用一张hash表保存所有远程函数的名字到函数的对应关系。这样就可以通过method查找一次hash表得到真正的函数，接下来就可以执行函数了，函数的执行结果当然就是作为响应返回给客户端。</p>
+
+<p>当然，这些需要被调用执行的函数都是在服务器初始化的时候事先注册到这张hash表中的。到这里，感觉一切都结束了。其实，还有<strong>参数</strong>(请求数据)和<strong>返回值</strong>(应答数据)，这部分主要是涉及到序列化算法，留到下次的<em>&#8220;反射和序列化&#8221;</em>再聊了。</p>
+
+<h4 id='go_rpc'>使用Go RPC框架写一个简单服务器</h4>
+
+<p>定义服务</p>
+
+<pre><code>type EchoServer bool
+
+func (s *EchoServer) Echo(req *string, res *string) error {
+	res = req
+	return nil
+}</code></pre>
+
+<p>注册服务</p>
+
+<pre><code>echo := new(EchoServer)
+if err := rpc.Register(echo); err != nil {
+	return err
+}
+
+// 下面基本是固定代码，创建一个tcp服务器
+var listener *net.TCPListener
+if tcpAddr, err := net.ResolveTCPAddr(&quot;tcp&quot;, addr); err != nil {
+	return err
+} else {
+	if listener, err = net.ListenTCP(&quot;tcp&quot;, tcpAddr); err != nil {
+		return err
+	}
+}
+
+for {
+	conn, err := listener.Accept()
+	if err != nil {
+		sc.LOG.Error(err)
+		continue
+	}
+	// 服务器走rpc框架的入口，也就是在一个tcp连接上采用rpc协议来处理请求和应答。
+	go rpc.ServeConn(conn)
+}
+return nil</code></pre>
+
+<p>这样，就实现了一个简单的echo服务器，功能逻辑都在自定义的EchoServer里面实现。接下来只需要将EchoServer的一个实例对象注册到rpc框架中，客户端就可以直接调用EchoServer对象中的方法了。</p>
+
+<p>Go rpc服务器的内部实现在思路上和前文提到的C语言实现基本是一样的。细心的人可能注意到了，这里注册的是EchoServer对象，而不是EchoSever对象的方法，然后前文的C语言实现中注册的直接是函数，那么rpc服务器如何能够根据<code>method</code>去调用<code>对应的方法</code>呢？Go语言在这里其实采用反射的手段，虽然表面上是注册的EchoServer对象，实际却是通过反射取得了EchoServer的所有方法，然后采用了map表保存了method到方法的映射，这就回到了前文C语言的实现思路中去了。如果没有反射的支持，就只能一个一个的方法全部注册一遍了，并且代码组织上也不够优雅。</p>
+
+<h4 id='id5'>编码解码器</h4>
+
+<p>rpc客户端有一个编码解码器定义了如何发送请求和读取应答，那么服务器端必然有一个编码解码器定义了如何读取请求和发送应答，刚好是一个相反的过程，这也就是序列化和反序列化的一个用处。</p>
+
+<pre><code>type ServerCodec interface {
+	ReadRequestHeader(*Request) error
+	ReadRequestBody(interface{}) error
+	WriteResponse(*Response, interface{}) error
+
+	Close() error
+}</code></pre>
+
+<p>和客户端一样，你只需要实现ServerCodec这个接口，就可以自定义服务端的编码解码器，实现自定义的rpc协议了。 Go rpc服务器端和客户端都是默认使用的Gob序列化协议数据。Go里面为什么采用自实现的Gob，而不是Google的protobuf，这个也留到下次的<em>&#8220;反射和序列化&#8221;</em>聊吧。</p>
+
+<p>注意，ServerCodec接口中的<code>ReadRequestBody(interface{}) error</code>方法主要是用来读取客户端call请求的参数数据，也就是将socket中读出来的数据包解码到<code>interface{}</code>所指向的具体对象中去，这里的<code>interface{}</code>可以理解为C语言中的<code>void *</code>。你一定注意到了，不同的rpc服务定义的参数类型完全不同，并且在rpc框架内部都采用了<code>interface{}</code>来适配，那么框架内部如何知道读取的socket数据要解码到什么具体类型中去呢？这里又是涉及到了反射，因为有了反射就可以从<code>interface{}</code>得到具体的类型。</p>
+
+<p>接下来真得好好的说说<em>“反射和序列化/反序列化”</em>了。</p>
+
+<h4 id='id6'>几个内部细节</h4>
+
+<ul>
+<li>服务器在发送应答的时候，同样采用了一把锁来保证原子性写入socket</li>
+
+<li>请求/应答结构(ServerCodec接口中出现的<code>Request/Response</code>)采用链表实现一个pool，需要一个Requet/Response的时候都从free list中获取，不再频繁的分配。这一点只是一个优化。</li>
+
+<li>Go的rpc除了直接跑在tcp服务器上，还可以跑在更高层一点的http服务器上。</li>
+
+<li>Go的rpc调用也提供了json序列化。</li>
+</ul>
+<br />
+<p>准备改变一下以前写技术文章老是大段大段代码的风格，试试小代码能不能将自己的想法交代清楚，哈哈。这一篇就先到此为止了。</p>
+
+<p>下一篇就看一下Go RPC框架的性能，做一个benchmark比较下。</p>
+    </div>
+
+  
+    <ul class="tag_box inline">
+      <li><i class="icon-folder-open"></i></li>
+      
+      
+
+
+  
+     
+    	<li><a href="/categories.html#go-ref">
+    		go <span>14</span>
+    	</a></li>
+    
+  
+
+
+    </ul>
+    
+
+  
+    <ul class="tag_box inline">
+      <li><i class="icon-tags"></i></li>
+      
+      
+
+
+  
+     
+    	<li><a href="/tags.html#Go-ref">Go <span>15</span></a></li>
+     
+    	<li><a href="/tags.html#language-ref">language <span>2</span></a></li>
+     
+    	<li><a href="/tags.html#communication-ref">communication <span>2</span></a></li>
+     
+    	<li><a href="/tags.html#rpc-ref">rpc <span>3</span></a></li>
+    
+  
+
+
+
+    </ul>
+    
+
+    <hr>
+    
+
+
+  <!-- UY BEGIN -->
+<div id="uyan_frame"></div>
+<script type="text/javascript" src="http://v2.uyan.cc/code/uyan.js?uid=1905720"></script>
+<!-- UY END -->
+
+
+
+
+
+  </div>
+</div>
+
+
+          </div>
+        </div>
+
+        <div class="span3" style="padding-top:40px">
+          <div style="color:#E74C3C">友情链接</div>
+          <ul><a href="http://blog.csdn.net/marcky" target="_blank">My CSDN Blog</a></ul>
+
+           
+          <div style="color:#E74C3C">eg</div>
+          <ul>
+              
+            
+
+
+  
+    
+      
+      	
+      	<li><a href="/eg/1970/01/01/example">example</a></li>
+      	
+      
+    
+  
+
+
+
+          </ul>
+           
+          <div style="color:#E74C3C">go</div>
+          <ul>
+              
+            
+
+
+  
+    
+      
+      	
+      	<li><a href="/go/2014/04/21/go-net-core">深入Go语言网络库的基础实现</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/11/29/golang-schedule">goroutine与调度器</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/11/11/go-runtime-mind">Go runtime中的那些东东</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/10/13/go-memory-manage-system-alloc">Go语言内存分配器的实现</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/10/11/go-memory-manage-system-span">Go语言内存分配器-MSpan</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/10/09/go-memory-manage-system-fixalloc">Go语言内存分配器-FixAlloc</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/10/08/go-memory-manage-system-design">Go语言内存分配器设计</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/09/28/go-select-memory-test">Go语言select的内存分配情况</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/09/26/go-runtime-select">select in Go's runtime</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/09/20/go-runtime-channel">channel in Go's runtime</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/09/12/go-runtime-timer">timer in Go's runtime</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/09/10/go-rpc-benchmark">Go RPC Benchmark</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li class="active"><a href="/go/2013/09/01/go-rpcserver-inside" class="active">Go RPC Inside (server)</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/08/28/go-rpcclient-inside">Go RPC Inside (client)</a></li>
+      	
+      
+    
+  
+
+
+
+          </ul>
+           
+          <div style="color:#E74C3C">vim</div>
+          <ul>
+              
+            
+
+
+  
+    
+      
+      	
+      	<li><a href="/vim/2013/09/18/vim-plugin-manager">使用github管理我的Vim</a></li>
+      	
+      
+    
+  
+
+
+
+          </ul>
+           
+          <div style="color:#E74C3C">algorithm</div>
+          <ul>
+              
+            
+
+
+  
+    
+      
+      	
+      	<li><a href="/algorithm/2013/09/30/base-128-varint">Base 128 Varint, 一种处理整数的变长二进制编码算法</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/algorithm/2013/09/28/shuffle-algorithm">一个洗牌场景及算法</a></li>
+      	
+      
+    
+  
+
+
+
+          </ul>
+           
+          <div style="color:#E74C3C">system</div>
+          <ul>
+              
+            
+
+
+  
+    
+      
+      	
+      	<li><a href="/system/2014/04/30/heka-plugin-devel">Heka插件开发</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/system/2014/04/02/hekad">Heka, 一个高可扩展的实时数据收集和处理工具</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/system/2014/03/19/inet-aton">inet_aton的坑</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/system/2014/03/18/udp-server-performance">使用reuseport和recvmmsg优化UDP服务器</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/system/2014/03/09/cdn-scheduler-conclusion">调度开发中的那些事</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/system/2014/03/05/reuseport">reuseport</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/system/2013/11/14/rdtsc-instruction">使用cpu的时钟周期作为随机数发生器的种子</a></li>
+      	
+      
+    
+  
+
+
+
+          </ul>
+          
+
+        </div>
+      </div>
+    </div>
+
+    
+
+
+  <script type="text/javascript">
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-44034004-1']);
+  _gaq.push(['_trackPageview']);
+
+  (function() {
+    var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+    ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+    var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+  })();
+</script>
+
+
+
+  </body>
+</html>
+

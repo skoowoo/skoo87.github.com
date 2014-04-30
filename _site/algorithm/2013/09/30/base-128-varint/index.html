@@ -1,0 +1,506 @@
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>skoo  Base 128 Varint, 一种处理整数的变长二进制编码算法</title>
+    
+    <meta name="author" content="skoo">
+
+    <!-- Enable responsive viewport -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- Le HTML5 shim, for IE6-8 support of HTML elements -->
+    <!--[if lt IE 9]>
+      <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+
+    <!-- Le styles -->
+    <link href="/assets/themes/twitter/bootstrap/css/bootstrap.2.2.2.min.css" rel="stylesheet">
+    <link href="/assets/themes/twitter/css/style.css?body=1" rel="stylesheet" type="text/css" media="all">
+    <link href="/assets/themes/twitter/css/pygments.css?body=1" rel="stylesheet" type="text/css" media="all">
+
+    <style>
+      code {
+        font-size: 13px;
+        padding: 1px 1px;
+        color: #2980B9;
+        background-color: ;
+        border: 0px solid white;
+        white-space: nowrap;
+      }
+
+      pre{
+        display:block;
+        padding:9.5px;
+        margin:0 0 5px;
+        font-size:11px;
+        line-height:15px;
+        word-break:break-all;
+        word-wrap:break-word;
+        white-space:pre;
+        white-space:pre-wrap;
+        background-color:;
+        border:0px;
+        border:0px;
+        -webkit-border-radius:0px;
+        -moz-border-radius:0px;
+        border-radius:0px;
+      }
+      pre.prettyprint{margin-bottom:10px;}
+    </style>
+
+    <!-- Le fav and touch icons -->
+  <!-- Update these with your own images
+    <link rel="shortcut icon" href="images/favicon.ico">
+    <link rel="apple-touch-icon" href="images/apple-touch-icon.png">
+    <link rel="apple-touch-icon" sizes="72x72" href="images/apple-touch-icon-72x72.png">
+    <link rel="apple-touch-icon" sizes="114x114" href="images/apple-touch-icon-114x114.png">
+  -->
+
+    <!-- atom & rss feed -->
+    <link href="/atom.xml" type="application/atom+xml" rel="alternate" title="Sitewide ATOM Feed">
+    <link href="/rss.xml" type="application/rss+xml" rel="alternate" title="Sitewide RSS Feed">
+
+  </head>
+
+  <body>
+    <div style="background-color: #E74C3C">
+      <div class="container-fluid">
+        <div class="row-fluid" style="color:#ECF0F1">
+          <div class="span11">
+            <h3><a href="/" style="color:#ECF0F1">skoo's notes</a></h3>
+            <small>努力记录一些自己觉得有趣的东西...</small>
+          </div>
+
+          <div class="span1">
+            <h4><a href="/skoo.html">About</a></h4>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="container-fluid">
+      <div class="row-fluid">
+        <div class="span9">
+          <div class="content" style="font-size:15px">
+            
+<div class="page-header">
+  <h3>Base 128 Varint, 一种处理整数的变长二进制编码算法</h3>
+</div>
+
+<div class="row-fluid post-full">
+  <div class="span12">
+    <div class="date">
+      <span>30 September 2013</span>
+    </div>
+    <div class="author">
+      <span>by <a href="/skoo.html">skoo</a></span>
+    </div>
+    <div class="content">
+      <p>我首次见到Base 128 Varint这个编码算法是在Google protobuf中，也不知道在它之前是否就已经出现了。最近，又碰到有人问如何对一个整数进行变长编码？也就是说给定的一个整数，能用1个字节存储就用一个字节的内存，需要两个字节存储就用两个字节的内存，而不是统一固定用4个字节或者8个字节。好处显然是非常明显的，特别是在二进制网络协议设计的时候，对整数进行变长编码很有必要。</p>
+
+<p>protobuf关于Base 128 Varint的介绍：<a href='https://developers.google.com/protocol-buffers/docs/encoding'>https://developers.google.com/protocol-buffers/docs/encoding</a>，这个文档展示的例子是如何根据一个Base 128 Varint编码的二进制序列解码出整数。这里完整的介绍一下，如何用Base 128 Varint算法去编码一个整数，以及解码一个二进制序列。</p>
+
+<p>Base 128 Varint，为什么叫128？其实，就是因为只采用7bit的空间来存储有效数据，7bit当然最大只能存储128了。常规的一个byte是8个bit位，但在Base 128 Varint编码中，将最高的第8位用来作为一个标志位，如果这一位是1，就表示这个字节后面还有其他字节，如果这个位是0的话，就表示这是最后一个字节了，这样一来，就可以准确的知道一个整数的结束位置了。</p>
+
+<p>就以protobuf文档中的整数300为例，先看一下如何将300编码成二进制序列。</p>
+
+<p>300的二进制表示为：<code>100101100</code>，显然300这个整数只需要2个字节就可以存储了，根本不需要4个字节。</p>
+
+<p>第一步：从低位到高位7bit划开，最后不足7bit的剩余部分用0补齐。也就是：<font color='red'>0000010</font> <font color='blue'>0101100</font></p>
+
+<p>第二步：反转字节顺序。结果：<font color='blue'>0101100</font> <font color='red'>0000010</font>。这其实就是规定了字节序的问题。</p>
+
+<p>第三步：填充标志位。上一步产生的二进制序列，每个组只有7个bit位，不足8bit，因为还没有加上最高位的标志位。这一步加上标志位后就是：<font color='blue'>10101100</font> <font color='red'>00000010</font>。这样就得到了300经过base 128 varint编码后的结果了，2个字节搞定。</p>
+
+<p>拿到二进制数据进行解码的过程当然就是编码过程的一个逆序了，这个一点难度都没有了。不过，这里的过程是人类自然语言的描述，和实际用计算语言来描述还是存在一点差异的。所以，如果真有一种程序语言可以用自然语言的方式来书写代码，那真的是很牛逼的样子。</p>
+
+<p>Base 128 Varint编码算法其实挺简单的，简单到我还码这么多文字，都快觉得不好意思了。还是再附带一下代码，方便以后自取。</p>
+
+<pre><code>int encode_varint(char *buf, uint64_t x)
+{
+    int n;
+
+    n = 0;
+
+    while (x &gt; 127) {
+        buf[n++] = (char) (0x80 | (x &amp; 0x7F));
+        x &gt;&gt;= 7;
+    }
+
+    buf[n++] = (char) x;
+    return n;
+}
+
+uint64_t decode_varint(char *buf)
+{
+    int      shift, n;
+    uint64_t x, c;
+
+    n = 0;
+    x = 0;
+
+    for (shift = 0; shift &lt; 64; shift += 7) {
+        c = (uint64_t) buf[n++];
+        x |= (c &amp; 0x7F) &lt;&lt; shift;
+        if ((c &amp; 0x80) == 0) {
+            break;
+        }
+    }
+
+    return x;
+}</code></pre>
+
+<p>用C简单的实现了对uint64_t类型的整数的变长编码和解码的函数，可以看出代码其实是很简单的。这个代码可以再优化一下，实现一个更加通用的版本。</p>
+
+<p>十一玩开心!</p>
+    </div>
+
+  
+    <ul class="tag_box inline">
+      <li><i class="icon-folder-open"></i></li>
+      
+      
+
+
+  
+     
+    	<li><a href="/categories.html#algorithm-ref">
+    		algorithm <span>2</span>
+    	</a></li>
+    
+  
+
+
+    </ul>
+    
+
+  
+    <ul class="tag_box inline">
+      <li><i class="icon-tags"></i></li>
+      
+      
+
+
+  
+     
+    	<li><a href="/tags.html#Algorithm-ref">Algorithm <span>1</span></a></li>
+    
+  
+
+
+
+    </ul>
+    
+
+    <hr>
+    
+
+
+  <!-- UY BEGIN -->
+<div id="uyan_frame"></div>
+<script type="text/javascript" src="http://v2.uyan.cc/code/uyan.js?uid=1905720"></script>
+<!-- UY END -->
+
+
+
+
+
+  </div>
+</div>
+
+
+          </div>
+        </div>
+
+        <div class="span3" style="padding-top:40px">
+          <div style="color:#E74C3C">友情链接</div>
+          <ul><a href="http://blog.csdn.net/marcky" target="_blank">My CSDN Blog</a></ul>
+
+           
+          <div style="color:#E74C3C">eg</div>
+          <ul>
+              
+            
+
+
+  
+    
+      
+      	
+      	<li><a href="/eg/1970/01/01/example">example</a></li>
+      	
+      
+    
+  
+
+
+
+          </ul>
+           
+          <div style="color:#E74C3C">go</div>
+          <ul>
+              
+            
+
+
+  
+    
+      
+      	
+      	<li><a href="/go/2014/04/21/go-net-core">深入Go语言网络库的基础实现</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/11/29/golang-schedule">goroutine与调度器</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/11/11/go-runtime-mind">Go runtime中的那些东东</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/10/13/go-memory-manage-system-alloc">Go语言内存分配器的实现</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/10/11/go-memory-manage-system-span">Go语言内存分配器-MSpan</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/10/09/go-memory-manage-system-fixalloc">Go语言内存分配器-FixAlloc</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/10/08/go-memory-manage-system-design">Go语言内存分配器设计</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/09/28/go-select-memory-test">Go语言select的内存分配情况</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/09/26/go-runtime-select">select in Go's runtime</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/09/20/go-runtime-channel">channel in Go's runtime</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/09/12/go-runtime-timer">timer in Go's runtime</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/09/10/go-rpc-benchmark">Go RPC Benchmark</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/09/01/go-rpcserver-inside">Go RPC Inside (server)</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/08/28/go-rpcclient-inside">Go RPC Inside (client)</a></li>
+      	
+      
+    
+  
+
+
+
+          </ul>
+           
+          <div style="color:#E74C3C">vim</div>
+          <ul>
+              
+            
+
+
+  
+    
+      
+      	
+      	<li><a href="/vim/2013/09/18/vim-plugin-manager">使用github管理我的Vim</a></li>
+      	
+      
+    
+  
+
+
+
+          </ul>
+           
+          <div style="color:#E74C3C">algorithm</div>
+          <ul>
+              
+            
+
+
+  
+    
+      
+      	
+      	<li class="active"><a href="/algorithm/2013/09/30/base-128-varint" class="active">Base 128 Varint, 一种处理整数的变长二进制编码算法</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/algorithm/2013/09/28/shuffle-algorithm">一个洗牌场景及算法</a></li>
+      	
+      
+    
+  
+
+
+
+          </ul>
+           
+          <div style="color:#E74C3C">system</div>
+          <ul>
+              
+            
+
+
+  
+    
+      
+      	
+      	<li><a href="/system/2014/04/30/heka-plugin-devel">Heka插件开发</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/system/2014/04/02/hekad">Heka, 一个高可扩展的实时数据收集和处理工具</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/system/2014/03/19/inet-aton">inet_aton的坑</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/system/2014/03/18/udp-server-performance">使用reuseport和recvmmsg优化UDP服务器</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/system/2014/03/09/cdn-scheduler-conclusion">调度开发中的那些事</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/system/2014/03/05/reuseport">reuseport</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/system/2013/11/14/rdtsc-instruction">使用cpu的时钟周期作为随机数发生器的种子</a></li>
+      	
+      
+    
+  
+
+
+
+          </ul>
+          
+
+        </div>
+      </div>
+    </div>
+
+    
+
+
+  <script type="text/javascript">
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-44034004-1']);
+  _gaq.push(['_trackPageview']);
+
+  (function() {
+    var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+    ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+    var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+  })();
+</script>
+
+
+
+  </body>
+</html>
+

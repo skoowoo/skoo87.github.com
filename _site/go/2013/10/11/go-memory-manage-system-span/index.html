@@ -1,0 +1,496 @@
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>skoo  Go语言内存分配器-MSpan</title>
+    
+    <meta name="author" content="skoo">
+
+    <!-- Enable responsive viewport -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <!-- Le HTML5 shim, for IE6-8 support of HTML elements -->
+    <!--[if lt IE 9]>
+      <script src="http://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+
+    <!-- Le styles -->
+    <link href="/assets/themes/twitter/bootstrap/css/bootstrap.2.2.2.min.css" rel="stylesheet">
+    <link href="/assets/themes/twitter/css/style.css?body=1" rel="stylesheet" type="text/css" media="all">
+    <link href="/assets/themes/twitter/css/pygments.css?body=1" rel="stylesheet" type="text/css" media="all">
+
+    <style>
+      code {
+        font-size: 13px;
+        padding: 1px 1px;
+        color: #2980B9;
+        background-color: ;
+        border: 0px solid white;
+        white-space: nowrap;
+      }
+
+      pre{
+        display:block;
+        padding:9.5px;
+        margin:0 0 5px;
+        font-size:11px;
+        line-height:15px;
+        word-break:break-all;
+        word-wrap:break-word;
+        white-space:pre;
+        white-space:pre-wrap;
+        background-color:;
+        border:0px;
+        border:0px;
+        -webkit-border-radius:0px;
+        -moz-border-radius:0px;
+        border-radius:0px;
+      }
+      pre.prettyprint{margin-bottom:10px;}
+    </style>
+
+    <!-- Le fav and touch icons -->
+  <!-- Update these with your own images
+    <link rel="shortcut icon" href="images/favicon.ico">
+    <link rel="apple-touch-icon" href="images/apple-touch-icon.png">
+    <link rel="apple-touch-icon" sizes="72x72" href="images/apple-touch-icon-72x72.png">
+    <link rel="apple-touch-icon" sizes="114x114" href="images/apple-touch-icon-114x114.png">
+  -->
+
+    <!-- atom & rss feed -->
+    <link href="/atom.xml" type="application/atom+xml" rel="alternate" title="Sitewide ATOM Feed">
+    <link href="/rss.xml" type="application/rss+xml" rel="alternate" title="Sitewide RSS Feed">
+
+  </head>
+
+  <body>
+    <div style="background-color: #E74C3C">
+      <div class="container-fluid">
+        <div class="row-fluid" style="color:#ECF0F1">
+          <div class="span11">
+            <h3><a href="/" style="color:#ECF0F1">skoo's notes</a></h3>
+            <small>努力记录一些自己觉得有趣的东西...</small>
+          </div>
+
+          <div class="span1">
+            <h4><a href="/skoo.html">About</a></h4>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="container-fluid">
+      <div class="row-fluid">
+        <div class="span9">
+          <div class="content" style="font-size:15px">
+            
+<div class="page-header">
+  <h3>Go语言内存分配器-MSpan</h3>
+</div>
+
+<div class="row-fluid post-full">
+  <div class="span12">
+    <div class="date">
+      <span>11 October 2013</span>
+    </div>
+    <div class="author">
+      <span>by <a href="/skoo.html">skoo</a></span>
+    </div>
+    <div class="content">
+      <p>MSpan和FixAlloc一样，都是内存分配器的基础工具组件，但和FixAlloc没太大的交集，各自发挥功效而已。span(MSpan简称span)是用来管理一组组page对象，先解释一下page，page就是一个4k大小的内存块而已。span就是将这一个个连续的page给管理起来，注意是连续的page，不是东一个西一个的乱摆设的page。为了直观形象的感受一下span，还是得画个图吧，图形是最好的交流语言。</p>
+<div align='center'>
+<img height='350' src='/assets/images/span.png' width='500' />
+</div>
+<p>MSpan结构定义在malloc.h头文件中，代码如下：</p>
+
+<pre><code>struct MSpan
+{
+	MSpan	*next;		// in a span linked list
+	MSpan	*prev;		// in a span linked list
+	PageID	start;		// starting page number
+	uintptr	npages;		// number of pages in span
+	MLink	*freelist;	// list of free objects
+	uint32	ref;		// number of allocated objects in this span
+	int32	sizeclass;	// size class
+	uintptr	elemsize;	// computed from sizeclass or from npages
+	uint32	state;		// MSpanInUse etc
+	int64   unusedsince;	// First time spotted by GC in MSpanFree state
+	uintptr npreleased;	// number of pages released to the OS
+	byte	*limit;		// end of data in span
+	MTypes	types;		// types of allocated objects in this span
+};</code></pre>
+
+<p>span结构比较重要的字段，都出现在上面的结构图中了，当然并不是说其他的字段就不重要了。span的结构中有pre/next两个指针，一看就能猜到是用来构造双向链表的。没错，在实际的使用中，span确实是出现在双向循环链表中。span可能会用在分配小对象（小于等于32k）的过程中，也可能会用于分配大对象(大于32k)，在分配不同类型对象的时候，span管理的元数据也大不相同。</p>
+
+<p><code>npages</code>表示是此span存储的page的个数（比如：上图中就画了3个page），<code>start</code>可以看作一个page指针，指向第一个page，有了第一个page当然就可以算出后面的任何一个page的起始地址了，因为span管理的始终是连续的一组page。这里需要注意start的类型是PageID，由此可以看出这个start保存的并不是第一个page的起始地址，而是第一个page的id值。这个id值是如何算出来的呢？其实给每个page算一个id，是非常简单的事情，只要将这个page的的地址除以4096取整(伪代码：<code>page_addr&gt;&gt;20</code>)即可，当然前提是已经保证好了每个page按4k对齐。是不是觉得很精妙，这样一来每个page都有一个整数id了，并且任何一个内存地址都可以通过移位算出这个地址属于哪个page，这个很重要。</p>
+
+<p>start是span最重要的一个字段，它维护好了所有的page。<code>sizeclass</code>如果是0的话，就代表这个span是用来分配大对象的，其他值当然都是分配小对象了。在分配小对象的时候，start字段维护的所有page，最后将会被切分成一个一个的连续内存块，内存块大小当然就是小对象的大小，这些切分出来的内存块将被链接成为一个链表挂在freelist字段上。分配大对象的时候，freelist就没什么用了。</p>
+
+<p>span干的活，也就这么一点，反正就是管理一组连续的page。内存分配器中的每个page都会属于一个span，page永远不会独立存在。span相关的API有：</p>
+
+<pre><code>// 初始化一个span结构，将分配的page放入到这个span中。
+void	runtime·MSpan_Init(MSpan *span, PageID start, uintptr npages);
+
+// 下面这些都是操作span构成的双向链表了。
+void	runtime·MSpanList_Init(MSpan *list);
+bool	runtime·MSpanList_IsEmpty(MSpan *list);
+void	runtime·MSpanList_Insert(MSpan *list, MSpan *span);
+void	runtime·MSpanList_Remove(MSpan *span);</code></pre>
+
+<p>span就先写到这里，接下来写mcache, mcentral, mheap等核心组件的时候还会涉及到如何使用span的。</p>
+
+<p>注：本文基于Go1.1.2版本代码</p>
+<br /><hr />
+<p><em>写到这里，我感觉自己并没有将span写清楚了，写源码分析类技术文章真心比读源码有挑战，我试图在用最小的代码展示来将原理述说清楚。发现自己的功底还是不够啊。</em></p>
+    </div>
+
+  
+    <ul class="tag_box inline">
+      <li><i class="icon-folder-open"></i></li>
+      
+      
+
+
+  
+     
+    	<li><a href="/categories.html#go-ref">
+    		go <span>14</span>
+    	</a></li>
+    
+  
+
+
+    </ul>
+    
+
+  
+    <ul class="tag_box inline">
+      <li><i class="icon-tags"></i></li>
+      
+      
+
+
+  
+     
+    	<li><a href="/tags.html#Go-ref">Go <span>15</span></a></li>
+     
+    	<li><a href="/tags.html#runtime-ref">runtime <span>11</span></a></li>
+    
+  
+
+
+
+    </ul>
+    
+
+    <hr>
+    
+
+
+  <!-- UY BEGIN -->
+<div id="uyan_frame"></div>
+<script type="text/javascript" src="http://v2.uyan.cc/code/uyan.js?uid=1905720"></script>
+<!-- UY END -->
+
+
+
+
+
+  </div>
+</div>
+
+
+          </div>
+        </div>
+
+        <div class="span3" style="padding-top:40px">
+          <div style="color:#E74C3C">友情链接</div>
+          <ul><a href="http://blog.csdn.net/marcky" target="_blank">My CSDN Blog</a></ul>
+
+           
+          <div style="color:#E74C3C">eg</div>
+          <ul>
+              
+            
+
+
+  
+    
+      
+      	
+      	<li><a href="/eg/1970/01/01/example">example</a></li>
+      	
+      
+    
+  
+
+
+
+          </ul>
+           
+          <div style="color:#E74C3C">go</div>
+          <ul>
+              
+            
+
+
+  
+    
+      
+      	
+      	<li><a href="/go/2014/04/21/go-net-core">深入Go语言网络库的基础实现</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/11/29/golang-schedule">goroutine与调度器</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/11/11/go-runtime-mind">Go runtime中的那些东东</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/10/13/go-memory-manage-system-alloc">Go语言内存分配器的实现</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li class="active"><a href="/go/2013/10/11/go-memory-manage-system-span" class="active">Go语言内存分配器-MSpan</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/10/09/go-memory-manage-system-fixalloc">Go语言内存分配器-FixAlloc</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/10/08/go-memory-manage-system-design">Go语言内存分配器设计</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/09/28/go-select-memory-test">Go语言select的内存分配情况</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/09/26/go-runtime-select">select in Go's runtime</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/09/20/go-runtime-channel">channel in Go's runtime</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/09/12/go-runtime-timer">timer in Go's runtime</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/09/10/go-rpc-benchmark">Go RPC Benchmark</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/09/01/go-rpcserver-inside">Go RPC Inside (server)</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/go/2013/08/28/go-rpcclient-inside">Go RPC Inside (client)</a></li>
+      	
+      
+    
+  
+
+
+
+          </ul>
+           
+          <div style="color:#E74C3C">vim</div>
+          <ul>
+              
+            
+
+
+  
+    
+      
+      	
+      	<li><a href="/vim/2013/09/18/vim-plugin-manager">使用github管理我的Vim</a></li>
+      	
+      
+    
+  
+
+
+
+          </ul>
+           
+          <div style="color:#E74C3C">algorithm</div>
+          <ul>
+              
+            
+
+
+  
+    
+      
+      	
+      	<li><a href="/algorithm/2013/09/30/base-128-varint">Base 128 Varint, 一种处理整数的变长二进制编码算法</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/algorithm/2013/09/28/shuffle-algorithm">一个洗牌场景及算法</a></li>
+      	
+      
+    
+  
+
+
+
+          </ul>
+           
+          <div style="color:#E74C3C">system</div>
+          <ul>
+              
+            
+
+
+  
+    
+      
+      	
+      	<li><a href="/system/2014/04/30/heka-plugin-devel">Heka插件开发</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/system/2014/04/02/hekad">Heka, 一个高可扩展的实时数据收集和处理工具</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/system/2014/03/19/inet-aton">inet_aton的坑</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/system/2014/03/18/udp-server-performance">使用reuseport和recvmmsg优化UDP服务器</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/system/2014/03/09/cdn-scheduler-conclusion">调度开发中的那些事</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/system/2014/03/05/reuseport">reuseport</a></li>
+      	
+      
+    
+  
+    
+      
+      	
+      	<li><a href="/system/2013/11/14/rdtsc-instruction">使用cpu的时钟周期作为随机数发生器的种子</a></li>
+      	
+      
+    
+  
+
+
+
+          </ul>
+          
+
+        </div>
+      </div>
+    </div>
+
+    
+
+
+  <script type="text/javascript">
+  var _gaq = _gaq || [];
+  _gaq.push(['_setAccount', 'UA-44034004-1']);
+  _gaq.push(['_trackPageview']);
+
+  (function() {
+    var ga = document.createElement('script'); ga.type = 'text/javascript'; ga.async = true;
+    ga.src = ('https:' == document.location.protocol ? 'https://ssl' : 'http://www') + '.google-analytics.com/ga.js';
+    var s = document.getElementsByTagName('script')[0]; s.parentNode.insertBefore(ga, s);
+  })();
+</script>
+
+
+
+  </body>
+</html>
+
