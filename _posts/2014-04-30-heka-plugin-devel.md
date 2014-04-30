@@ -3,7 +3,7 @@ layout: post
 title: Heka插件开发
 category: system
 tagline: "Supporting tagline"
-tags : [Heka]
+tags: [Heka, Go]
 ---
 {% include JB/setup %}
 
