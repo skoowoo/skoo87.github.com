@@ -20,7 +20,6 @@ Heka是一个实时数据收集、处理和分析的工具，具备高可扩展�
 
 内部架构图中展示的所有组件，我们可以通过开发插件定制的部分分别是：Inputs、Decoders、Filters和Outputs。
 
-<br>
 ####编译源码
 1、从github上克隆出Heka源码库
 
@@ -50,7 +49,6 @@ build目录中的heka目录是我们需要关注的。这里放置了所有编�
 </div>
 **hekad**文件就是我们最关心的二进制执行文件。只需要这个二进制加上配置文件就可以运行整个Heka软件。
 
-<br>	
 ####配置Heka实例
 
 为了能够直观的感受Heka，我们配置一个简单的实例，让它监控本机上的nginx access日志目录，实时的读取增量日志，并做条数统计，然后将结果打印到屏幕。
@@ -118,7 +116,6 @@ Nginx Access日志format是：
 
 上面打印到屏幕中的**Payload: Got 100 messages. 20.00 msg/sec**，就是counter插件的统计计算结果，counter插件是Heka自带的一个filter插件，这里打印到屏幕也是用的Heka自带的LogOut插件。
 
-<br>
 ####插件编译
 
 在我们克隆出来的Heka源码目录中有一个examples目录，里面有几个插件开发的示例，我们选取host_filter.go插件来试图编译一次。
