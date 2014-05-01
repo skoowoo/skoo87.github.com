@@ -40,11 +40,13 @@ Heka是一个实时数据收集、处理和分析的工具，具备高可扩展�
 		sh build.sh
 		
 build.sh脚本是Heka的编译工具，整个工程是通过cmake来管理的。第一次build过程可能比较慢，因为还会下载一些其他的依赖库和工具，不过不需要人为干预，坐等build完成即可。build完成后，当前源码目录下多出一个build目录：
+
 <div align="center">
 <img src="/assets/images/heka-build.png" height="280" width="450">
 </div>
 
 build目录中的heka目录是我们需要关注的。这里放置了所有编译结果，包括heka可执行的二进制文件等。
+
 <div align="center">
 <img src="/assets/images/heka-build-bin.png" height="200" width="500">
 </div>
