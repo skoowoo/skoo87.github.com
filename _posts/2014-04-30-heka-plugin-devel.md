@@ -21,13 +21,19 @@ Heka是一个实时数据收集、处理和分析的工具，具备高可扩展�
 内部架构图中展示的所有组件，我们可以通过开发插件定制的部分分别是：Inputs、Decoders、Filters和Outputs。
 
 ####编译源码
-build.sh脚本是Heka的编译工具，整个工程是通过cmake来管理的。第一次build过程可能比较慢，因为还会下载一些其他的依赖库和工具，不过不需要人为干预，坐等build完成即可。build完成后，当前源码目录下多出一个build目录：
-<div>
-<img src="/assets/images/heka-build.png" height="280" width="450">
-</div>
+1、从github上克隆出Heka源码库
+
+	git clone https://github.com/mozilla-services/heka
 	
-build目录中的heka目录是我们需要关注的。这里放置了所有编译结果，包括heka可执行的二进制文件等。
-<div>
-<img src="/assets/images/heka-build-bin.png" height="200" width="500">
-</div>
-**hekad**文件就是我们最关心的二进制执行文件。只需要这个二进制加上配置文件就可以运行整个Heka软件。
+
+2、查看Heka已经release的版本，其实就是打的tag
+
+	git tag
+		
+我看到的最新release版本是v0.5.1，因此我们选择这个最新版本的代码：
+		
+	git checkout v0.5.1
+				
+3、现在可以编译当前最新版本v0.5.1代码了(windows平台忽略，暂时只关心Linux平台)
+
+	sh build.sh
