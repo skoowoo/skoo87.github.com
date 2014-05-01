@@ -33,7 +33,7 @@ Heka是一个实时数据收集、处理和分析的工具，具备高可扩展�
 		
 我看到的最新release版本是v0.5.1，因此我们选择这个最新版本的代码：
 		
-		git checkout v0.5.1
+	git checkout v0.5.1
 				
 3、现在可以编译当前最新版本v0.5.1代码了(windows平台忽略，暂时只关心Linux平台)
 
@@ -144,7 +144,6 @@ Nginx Access日志format是：
 现在build出来的hekad二进制文件就已经包含了新增加的插件了。
 	
 	
-<br>
 ####插件开发
 
 Heka可以采用Go或者Lua开发插件，本文只介绍Go语言开发插件。具体业务数据计算需求基本都是通过开发Filter插件来完成，介绍一个Filter插件的大体框架：
@@ -177,14 +176,12 @@ Heka可以采用Go或者Lua开发插件，本文只介绍Go语言开发插件。
 	
 开发一个Filter插件，只需要定义一个插件对象，然后将对象通过init函数注册上插件即可。此处我们将filter插件对象定义为`DemoFilter`，它同时需要实现`Init`和`Run`两个方法，Init方法主要是获取配置文件设置的配置选项；Run方法是监听自己的输入channel，接收消息，然后进行处理。
 
-<br>
 	pipeline.RegisterPlugin("DemoFilter", func() interface{} {
 		return new(DemoFilter)
 	})
 
 "DemoFilter"字符串是插件的名字或者也可以当做类型。这个将在配置文件使用。
 
-<br>
 
 	for pack := range runner.InChan() {
 		
@@ -193,9 +190,7 @@ Heka可以采用Go或者Lua开发插件，本文只介绍Go语言开发插件。
 	
 runner.InChan()调用其实是返回的插件的输入channel，也就是数据将从这里流入到这个插件，pack就是获取到的一个消息，消息类型是：`*PipelinePack`，所有进入Heka的数据都被封装成了PipelinePack在内部各个组件之间传输，这是插件开发将直接打交道的最重要的一个对象。当我们把一个pack处理完后，不再需要将pack传递给下一个组件时，也就是这个pack的生命结束，那么我们需要释放它，于是调用pack.Recycle()方法。Recycle的目的是缓存pack对象，留给下一个数据使用，可以降低gc压力。
 
-<br>
 Filter插件的开发，可以学习examples/host_filter.go。Heka本身就自带了很多的插件，都可以作为学习的目标。我觉得要深刻的理解插件开发，还是需要熟悉heka核心源码才行。
 
-<br>
 玩开心。。。
  
