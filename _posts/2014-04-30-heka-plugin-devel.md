@@ -49,6 +49,8 @@ build.sh脚本是Heka的编译工具，整个工程是通过cmake来管理的。
 <img src="/assets/images/heka-build-bin.png" height="200" width="500">
 </div>
 
+**hekad**文件就是我们最关心的二进制执行文件。只需要这个二进制加上配置文件就可以运行整个Heka软件。
+
 <br>	
 ####配置Heka实例
 
