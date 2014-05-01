@@ -200,5 +200,5 @@ runner.InChan()调用其实是返回的插件的输入channel，也就是数据�
 Filter插件的开发，可以学习examples/host_filter.go。Heka本身就自带了很多的插件，都可以作为学习的目标。我觉得要深刻的理解插件开发，还是需要熟悉heka核心源码才行。
 
 <br>
-玩开心。。。
+最近打算用Heka做点事情。
  
