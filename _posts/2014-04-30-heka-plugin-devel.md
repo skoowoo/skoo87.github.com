@@ -20,13 +20,14 @@ Heka是一个实时数据收集、处理和分析的工具，具备高可扩展�
 
 内部架构图中展示的所有组件，我们可以通过开发插件定制的部分分别是：Inputs、Decoders、Filters和Outputs。
 
+<br>
 ####编译源码
-1. 从github上克隆出Heka源码库
+* 从github上克隆出Heka源码库
 
 		git clone https://github.com/mozilla-services/heka
 	
 
-2. 查看Heka已经release的版本，其实就是打的tag
+* 查看Heka已经release的版本，其实就是打的tag
 
 		git tag
 		
@@ -34,7 +35,7 @@ Heka是一个实时数据收集、处理和分析的工具，具备高可扩展�
 		
 		git checkout v0.5.1
 				
-3. 现在可以编译当前最新版本v0.5.1代码了(windows平台忽略，暂时只关心Linux平台)
+* 现在可以编译当前最新版本v0.5.1代码了(windows平台忽略，暂时只关心Linux平台)
 
 		sh build.sh
 		
