@@ -1,11 +1,4 @@
----
-layout: post
-title: TCP self-connection
-category: system
-tagline: "Supporting tagline"
-tags : [tcp, go]
----
-{% include JB/setup %}
+
 
 Go 语言的 net 库里有下面这样的一段代码，这段代码是用来发起一个 tcp 连接的，仔细阅读这段代码可以发现代码里处理了一种很不常见的特殊情形，也就是 tcp self-connection。代码中的注释解释得很详细了。
 
