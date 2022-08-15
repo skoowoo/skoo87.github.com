@@ -1,11 +1,4 @@
----
-layout: post
-title: 深入讨论channel timeout
-category: go
-tagline: "Supporting tagline"
-tags : [Go, channel, timeout]
----
-{% include JB/setup %}
+
 
 Go 语言的 channel 本身是不支持 timeout 的，所以一般实现 channel 的读写超时都采用 select，如下：
 
