@@ -1,13 +1,3 @@
----
-layout: post
-title: goroutine与调度器
-category: go
-tagline: "Supporting tagline"
-tags : [Go, runtime]
----
-{% include JB/setup %}
-
-
 我们都知道Go语言是原生支持语言级并发的，这个并发的最小逻辑单元就是goroutine。goroutine就是Go语言提供的一种用户态线程，当然这种用户态线程是跑在内核级线程之上的。当我们创建了很多的goroutine，并且它们都是跑在同一个内核线程之上的时候，就需要一个调度器来维护这些goroutine，确保所有的goroutine都使用cpu，并且是尽可能公平的使用cpu资源。
 
 
